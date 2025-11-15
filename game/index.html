@@ -137,32 +137,50 @@
 
         // Audio processing function
         const processAudioToPCM = async (audioBlob) => {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = async () => {
-                    const arrayBuffer = reader.result;
-                    
-                    // Convert to AudioContext
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                    
-                    // Get PCM data
-                    const channelData = audioBuffer.getChannelData(0);
-                    const pcmData = new Int16Array(channelData.length);
-                    
-                    for (let i = 0; i < channelData.length; i++) {
-                        pcmData[i] = Math.max(-32768, Math.min(32767, channelData[i] * 32767));
+                    try {
+                        const arrayBuffer = reader.result;
+                        
+                        // Convert to AudioContext
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                        
+                        // Get PCM data
+                        const channelData = audioBuffer.getChannelData(0);
+                        const pcmData = new Int16Array(channelData.length);
+                        
+                        for (let i = 0; i < channelData.length; i++) {
+                            pcmData[i] = Math.max(-32768, Math.min(32767, channelData[i] * 32767));
+                        }
+                        
+                        // Convert to base64 in chunks to avoid stack overflow
+                        let base64Audio = '';
+                        const chunkSize = 0x8000; // 32KB chunks
+                        for (let i = 0; i < pcmData.length; i += chunkSize) {
+                            const chunk = pcmData.subarray(i, i + chunkSize);
+                            // Convert Int16Array to bytes
+                            const bytes = new Uint8Array(chunk.length * 2);
+                            for (let j = 0; j < chunk.length; j++) {
+                                const sample = chunk[j];
+                                bytes[j * 2] = sample & 0xff;
+                                bytes[j * 2 + 1] = (sample >> 8) & 0xff;
+                            }
+                            base64Audio += btoa(String.fromCharCode.apply(null, bytes));
+                        }
+                        
+                        resolve({
+                            base64Audio: base64Audio,
+                            sampleRate: 16000,
+                            channels: 1
+                        });
+                    } catch (error) {
+                        console.error('Error processing audio:', error);
+                        reject(error);
                     }
-                    
-                    // Convert to base64
-                    const base64Audio = btoa(String.fromCharCode.apply(null, pcmData));
-                    
-                    resolve({
-                        base64Audio: base64Audio,
-                        sampleRate: 16000,
-                        channels: 1
-                    });
                 };
+                reader.onerror = () => reject(new Error('Failed to read audio blob'));
                 reader.readAsArrayBuffer(audioBlob);
             });
         };
@@ -424,20 +442,6 @@
             const mediaRecorderRef = useRef(null);
             const audioChunksRef = useRef([]);
 
-            useEffect(() => {
-                const handleKeyPress = (e) => {
-                    if (e.code === 'Space') {
-                        e.preventDefault();
-                        if (isRecording) {
-                            moveToNextSyllable();
-                        }
-                    }
-                };
-                
-                window.addEventListener('keydown', handleKeyPress);
-                return () => window.removeEventListener('keydown', handleKeyPress);
-            }, [currentSyllableIndex, syllables, isRecording]);
-
             const moveToNextSyllable = () => {
                 if (currentSyllableIndex < syllables.length - 1) {
                     setCurrentSyllableIndex(currentSyllableIndex + 1);
@@ -446,6 +450,30 @@
                     stopRecordingAndValidate();
                 }
             };
+
+            const handleKeyPress = (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (isRecording) {
+                        console.log('Space pressed - currentSyllableIndex:', currentSyllableIndex, 'syllables.length:', syllables.length);
+                        // Check if this is the last syllable
+                        if (currentSyllableIndex >= syllables.length - 1) {
+                            // Last syllable, stop recording and validate
+                            console.log('Last syllable reached, stopping recording');
+                            stopRecordingAndValidate();
+                        } else {
+                            // Move to next syllable
+                            console.log('Moving to next syllable');
+                            moveToNextSyllable();
+                        }
+                    }
+                }
+            };
+
+            useEffect(() => {
+                window.addEventListener('keydown', handleKeyPress);
+                return () => window.removeEventListener('keydown', handleKeyPress);
+            }, [currentSyllableIndex, syllables, isRecording]);
 
             const startRecording = async () => {
                 try {
@@ -477,12 +505,32 @@
                     mediaRecorderRef.current.stop();
                     setIsRecording(false);
                     
-                    // Get the recorded audio
-                    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                    
-                    try {
-                        // Convert to PCM format and send to API
-                        const audioData = await processAudioToPCM(audioBlob);
+                    // Wait a moment for the final data to be processed
+                    setTimeout(async () => {
+                        // Check if we have any audio data
+                        if (audioChunksRef.current.length === 0) {
+                            setResult({ 
+                                success: false, 
+                                message: 'No audio recorded. Please try again.' 
+                            });
+                            return;
+                        }
+                        
+                        // Get the recorded audio
+                        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                        
+                        // Check if the blob is too small (less than 100ms of audio)
+                        if (audioBlob.size < 1000) {
+                            setResult({ 
+                                success: false, 
+                                message: 'Recording too short. Please record for longer.' 
+                            });
+                            return;
+                        }
+                        
+                        try {
+                            // Convert to PCM format and send to API
+                            const audioData = await processAudioToPCM(audioBlob);
                         
                         const response = await fetch('http://localhost:8001/compare-speech', {
                             method: 'POST',
@@ -490,13 +538,14 @@
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify({
-                                audio_data: audioData.base64Audio,
-                                comparison_text: currentSentence,
-                                file_format: 'pcm_s16le_16'
+                                audio_content: audioData.base64Audio,
+                                comparison_text: currentSentence
                             })
                         });
                         
                         const result = await response.json();
+                        
+                        console.log('Similarity score:', result.similarity_score);
                         
                         if (result.is_match || result.similarity_score > 0.8) {
                             const newScore = score + 1;
@@ -521,7 +570,7 @@
                         } else {
                             setResult({ 
                                 success: false, 
-                                message: `Not quite right. Let's try again!\nTranscript: "${result.transcript}"\nExpected: "${currentSentence}"` 
+                                message: `Not quite right. Let's try again!` 
                             });
                         }
                     } catch (error) {
@@ -531,6 +580,7 @@
                             message: 'Error validating speech. Please try again.' 
                         });
                     }
+                    }, 100); // Small delay to ensure audio data is ready
                 }
             };
 
@@ -539,6 +589,27 @@
                 setCurrentSyllableIndex(0);
                 setRecordedSyllables([]);
                 // Keep the same sentence and score, just reset the result
+            };
+
+            const handleSkip = () => {
+                // Stop recording if active
+                if (isRecording && mediaRecorderRef.current) {
+                    mediaRecorderRef.current.stop();
+                    setIsRecording(false);
+                }
+                
+                // Move to next sentence
+                const nextIndex = currentSentenceIndex + 1;
+                if (nextIndex < sentences.length) {
+                    setCurrentSentenceIndex(nextIndex);
+                    setCurrentSentence(sentences[nextIndex]);
+                    setSyllables(splitIntoSyllables(sentences[nextIndex]));
+                    setCurrentSyllableIndex(0);
+                    setResult(null);
+                } else {
+                    // All sentences completed
+                    onNext();
+                }
             };
 
             return (
@@ -628,6 +699,11 @@
                             {isRecording && (
                                 <button onClick={stopRecordingAndValidate} className="btn-secondary flex-1">
                                     ⏹️ Stop Recording
+                                </button>
+                            )}
+                            {result && !result.success && (
+                                <button onClick={handleSkip} className="btn-secondary flex-1">
+                                    ⏭️ Skip Sentence
                                 </button>
                             )}
                         </div>
