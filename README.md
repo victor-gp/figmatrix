@@ -1,142 +1,84 @@
-# Speech-to-Text Comparison API
+# Speech Therapy app
 
-A FastAPI application that receives PCM audio files, transcribes them using ElevenLabs, and compares the transcript with a provided text string.
+## Overview
 
-## Features
+This app is an interactive speech therapy application designed to help children with speech issues practice pronunciation of challenging sounds through tongue twisters and targeted sentences. The application provides real-time feedback on pronunciation accuracy by comparing spoken words against expected text.
 
-- Accept base64 encoded PCM audio content via query parameters
-- Convert speech to text using ElevenLabs API
-- Compare transcript with provided text
-- Return similarity scores and match results
-- RESTful API with interactive documentation
+### How It Works
 
-## Setup
+- **Sentence Display**: The application presents sentences and tongue twisters tailored to specific speech sounds that children struggle with.
+- **Interactive Practice**: Users speak each word into their device's microphone, with visual guidance showing which word to pronounce next.
+- **Space Bar Navigation**: Press the space bar between words to move the "cursor" to the next word in the sequence.
+- **Real-time Validation**: Your pronunciation is instantly validated against the expected word using advanced speech recognition technology.
+- **Instant Feedback**: Receive feedback on whether your pronunciation matches the target word, helping you improve over time.
 
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Target Audience
 
-2. **Set up environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your ElevenLabs API key
-   ```
+This application is specifically designed for:
 
-3. **Get an ElevenLabs API key:**
-   - Sign up at [ElevenLabs](https://elevenlabs.io/)
-   - Get your API key from the dashboard
-   - Add it to your `.env` file
+- Speech-language pathologists and therapists
+- Children with speech articulation disorders
 
-## Running the Application
+## Getting Started
 
-```bash
-python main.py
-```
+### Prerequisites
 
-The API will be available at `http://localhost:8000`
+- Python 3.8+
+- Node.js (for frontend development)
+- ElevenLabs API account and API key
 
-## API Endpoints
+### Installation
 
-### POST /compare-speech
+1. Clone the repository
+2. Install backend dependencies: `pip install -r requirements.txt`
+3. Install frontend dependencies: `cd frontend && npm install`
+4. Set up your ElevenLabs API key on `.env.example`
+5. Start the backend server: `python main.py`
+6. Start the frontend development server: `cd frontend && npm run dev`
 
-Compare speech transcript with provided text using base64 encoded audio content.
+### Usage
 
-**Request:**
-- Method: POST
-- Parameters (query parameters):
-  - `audio_content`: Base64 encoded PCM_s16le_16 audio content (required)
-  - `comparison_text`: Text to compare against transcript (required)
+1. Open the application in your web browser
+2. Allow microphone access when prompted
+3. Select a tongue twister or sentence to practice
+4. Speak each word clearly into your microphone
+5. Press space bar to advance to the next word
+6. Receive instant feedback on your pronunciation accuracy
 
-**Example using curl:**
-```bash
-# First encode your PCM file to base64
-AUDIO_BASE64=$(base64 -w 0 audio.pcm)
+## Stack
 
-curl -X POST "http://localhost:8000/compare-speech?audio_content=$AUDIO_BASE64&comparison_text=Hello world, this is a test"
-```
+### APIs & Services
 
-**JavaScript/Frontend Example:**
-```javascript
-// Convert audio file to base64
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            // Remove the data URL prefix (e.g., "data:audio/pcm;base64,")
-            const base64 = reader.result.split(',')[1];
-            resolve(base64);
-        };
-        reader.onerror = error => reject(error);
-    });
-}
+- **ElevenLabs Speech-to-Text API** - Converts spoken audio to text for comparison
+- **Web Audio API** - Captures microphone input from the browser
 
-// Make API call
-async function compareSpeech(audioFile, comparisonText) {
-    const audioBase64 = await fileToBase64(audioFile);
-    
-    const response = await fetch(`http://localhost:8000/compare-speech?audio_content=${audioBase64}&comparison_text=${encodeURIComponent(comparisonText)}`, {
-        method: 'POST'
-    });
-    
-    return await response.json();
-}
-```
+### Backend
 
-**Response:**
-```json
-{
-  "transcript": "hello world this is a test",
-  "comparison_text": "Hello world, this is a test",
-  "similarity_score": 0.95,
-  "is_match": false,
-  "details": {
-    "similarity_ratio": 0.95,
-    "exact_match": false,
-    "is_similar": true,
-    "similarity_threshold": 0.8,
-    "normalized_transcript": "hello world this is a test",
-    "normalized_comparison": "hello world this is a test"
-  }
-}
-```
+- **ElevenLabs Python SDK** - Interface for speech-to-text conversion
+- **Python 3.x** - Core programming language
+- **FastAPI** - Modern, fast web framework for building APIs
 
-### GET /
+### Frontend
 
-Root endpoint with API information.
+- **HTML5** - Structure and semantics
+- **CSS3** - Styling and responsive design
+- **JavaScript/TypeScript** - Client-side interactivity
+- **Vite** - Build tool and development server
+- **React** - User interface components
 
-### GET /health
+### Key Features
 
-Health check endpoint.
+- **Real-time Speech Recognition**: Leverages ElevenLabs' advanced speech-to-text technology
+- **Pronunciation Comparison**: Sophisticated string matching algorithms with configurable similarity thresholds
+- **Progressive Word Navigation**: Space bar controlled word-by-word progression
+- **Responsive Design**: Works across desktop and mobile devices
+- **Audio Processing**: Handles PCM audio encoding and decoding
+- **Error Handling**: Robust error management for various speech recognition scenarios
 
-## API Documentation
+## The Team
 
-Interactive documentation is available at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
-## Comparison Logic
-
-The API performs string comparison with the following metrics:
-
-- **similarity_ratio**: Float between 0 and 1 using SequenceMatcher
-- **exact_match**: Boolean indicating exact match (ignoring case and whitespace)
-- **is_similar**: Boolean indicating if similarity ratio >= 0.8
-- **similarity_threshold**: Currently set to 0.8 (configurable)
-
-## Error Handling
-
-The API returns appropriate HTTP status codes and error messages for:
-- Invalid file types
-- Missing required parameters
-- ElevenLabs API errors
-- Internal server errors
-
-## Dependencies
-
-- FastAPI: Web framework
-- Uvicorn: ASGI server
-- ElevenLabs: Speech-to-text API client
-- python-dotenv: Environment variable management
-- python-multipart: File upload support
+- **Afaf Driouech**
+- **Daniele Pala**
+- **Rahimakhan Abduqodirova**
+- **Thao Phuong Pham**
+- **Victor Gonzalez Prieto**
