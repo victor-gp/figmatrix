@@ -32,7 +32,7 @@ This application is specifically designed for:
 1. Clone the repository
 2. Install backend dependencies: `pip install -r requirements.txt`
 3. Install frontend dependencies: `cd frontend && npm install`
-4. Set up environment variables with your ElevenLabs API key
+4. Set up your ElevenLabs API key on `.env.example`
 5. Start the backend server: `python main.py`
 6. Start the frontend development server: `cd frontend && npm run dev`
 
