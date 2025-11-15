@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech-to-Text API Test</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 100px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .record-btn {
+            background: #e74c3c;
+            color: white;
+        }
+        .record-btn:hover {
+            background: #c0392b;
+        }
+        .record-btn.recording {
+            background: #27ae60;
+            animation: pulse 1.5s infinite;
+        }
+        .stop-btn {
+            background: #95a5a6;
+            color: white;
+        }
+        .stop-btn:hover {
+            background: #7f8c8d;
+        }
+        .compare-btn {
+            background: #3498db;
+            color: white;
+        }
+        .compare-btn:hover {
+            background: #2980b9;
+        }
+        .compare-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .result {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .result h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .similarity-score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #27ae60;
+            margin: 10px 0;
+        }
+        .transcript {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e1e5e9;
+            margin: 10px 0;
+        }
+        .error {
+            background: #ffe6e6;
+            border-left: 4px solid #e74c3c;
+            color: #c0392b;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef } = React;
+
+        function SpeechToTextApp() {
+            const [comparisonText, setComparisonText] = useState('');
+            const [isRecording, setIsRecording] = useState(false);
+            const [audioBlob, setAudioBlob] = useState(null);
+            const [result, setResult] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const mediaRecorderRef = useRef(null);
+            const audioChunksRef = useRef([]);
+
+            const startRecording = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorderRef.current = new MediaRecorder(stream);
+                    audioChunksRef.current = [];
+
+                    mediaRecorderRef.current.ondataavailable = (event) => {
+                        audioChunksRef.current.push(event.data);
+                    };
+
+                    mediaRecorderRef.current.onstop = () => {
+                        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                        setAudioBlob(audioBlob);
+                        
+                        // Stop all tracks
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorderRef.current.start();
+                    setIsRecording(true);
+                    setError('');
+                    setResult(null);
+                } catch (err) {
+                    setError('Error accessing microphone: ' + err.message);
+                }
+            };
+
+            const stopRecording = () => {
+                if (mediaRecorderRef.current && isRecording) {
+                    mediaRecorderRef.current.stop();
+                    setIsRecording(false);
+                }
+            };
+
+            const convertToPCM = (audioBuffer) => {
+                const numberOfChannels = audioBuffer.numberOfChannels;
+                const length = audioBuffer.length;
+                const sampleRate = audioBuffer.sampleRate;
+                
+                // Downsample to 16kHz if needed
+                const targetSampleRate = 16000;
+                const ratio = sampleRate / targetSampleRate;
+                const newLength = Math.floor(length / ratio);
+                
+                const pcmData = new Int16Array(newLength);
+                
+                for (let channel = 0; channel < numberOfChannels; channel++) {
+                    const channelData = audioBuffer.getChannelData(channel);
+                    
+                    for (let i = 0; i < newLength; i++) {
+                        const originalIndex = Math.floor(i * ratio);
+                        let sample = channelData[originalIndex] || 0;
+                        
+                        // Convert to 16-bit PCM
+                        sample = Math.max(-1, Math.min(1, sample));
+                        pcmData[i] = sample * 0x7FFF;
+                    }
+                }
+                
+                return pcmData.buffer;
+            };
+
+            const convertToBase64 = (blob) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            };
+
+            const processAudioToPCM = async (audioBlob) => {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                const pcmBuffer = convertToPCM(audioBuffer);
+                
+                // Convert PCM buffer to base64
+                const pcmBlob = new Blob([pcmBuffer], { type: 'audio/pcm' });
+                return convertToBase64(pcmBlob);
+            };
+
+            const compareSpeech = async () => {
+                if (!audioBlob || !comparisonText.trim()) {
+                    setError('Please record audio and enter comparison text');
+                    return;
+                }
+
+                setLoading(true);
+                setError('');
+
+                try {
+                    // Convert audio to PCM format for ElevenLabs
+                    const base64Audio = await processAudioToPCM(audioBlob);
+                    console.log('Audio converted to PCM format');
+                    
+                    // Make API call
+                    const response = await fetch('http://localhost:8001/compare-speech', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            audio_content: base64Audio,
+                            comparison_text: comparisonText
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'API request failed');
+                    }
+
+                    const data = await response.json();
+                    setResult(data);
+                } catch (err) {
+                    setError('Error: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="container">
+                    <h1>🎤 Speech-to-Text API Test</h1>
+                    
+                    <div className="form-group">
+                        <label htmlFor="comparison-text">
+                            Text to Compare Against:
+                        </label>
+                        <textarea
+                            id="comparison-text"
+                            value={comparisonText}
+                            onChange={(e) => setComparisonText(e.target.value)}
+                            placeholder="Enter the text you want to compare against the speech transcript..."
+                        />
+                    </div>
+
+                    <div className="button-group">
+                        <button
+                            className={`record-btn ${isRecording ? 'recording' : ''}`}
+                            onClick={startRecording}
+                            disabled={isRecording}
+                        >
+                            {isRecording ? '🔴 Recording...' : '🎤 Start Recording'}
+                        </button>
+                        <button
+                            className="stop-btn"
+                            onClick={stopRecording}
+                            disabled={!isRecording}
+                        >
+                            ⏹️ Stop Recording
+                        </button>
+                        <button
+                            className="compare-btn"
+                            onClick={compareSpeech}
+                            disabled={!audioBlob || loading || !comparisonText.trim()}
+                        >
+                            {loading ? '⏳ Processing...' : '🔍 Compare Speech'}
+                        </button>
+                    </div>
+
+                    {audioBlob && (
+                        <div className="form-group">
+                            <label>Recording Preview:</label>
+                            <audio controls src={URL.createObjectURL(audioBlob)} />
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="error">
+                            <strong>Error:</strong> {error}
+                        </div>
+                    )}
+
+                    {loading && (
+                        <div className="loading">
+                            ⏳ Processing your audio...
+                        </div>
+                    )}
+
+                    {result && (
+                        <div className="result">
+                            <h3>📊 Comparison Results</h3>
+                            
+                            <div className="similarity-score">
+                                Similarity Score: {(result.similarity_score * 100).toFixed(1)}%
+                            </div>
+                            
+                            <div>
+                                <strong>Match Status:</strong> {result.is_match ? '✅ Match' : '❌ No Match'}
+                            </div>
+                            
+                            <div className="transcript">
+                                <strong>📝 Transcript:</strong>
+                                <p>{result.transcript}</p>
+                            </div>
+                            
+                            <div className="transcript">
+                                <strong>🎯 Comparison Text:</strong>
+                                <p>{result.comparison_text}</p>
+                            </div>
+                            
+                            <div>
+                                <strong>🔍 Details:</strong>
+                                <pre>{JSON.stringify(result.details, null, 2)}</pre>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<SpeechToTextApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
