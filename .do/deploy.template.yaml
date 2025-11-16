@@ -1,0 +1,8 @@
+spec:
+  name: figmatrix-backend
+  services:
+  - environment_slug: python
+    git:
+      branch: backend-deploy
+      repo_clone_url: https://github.com/victor-gp/figmatrix.git
+    name: figmatrix-backend

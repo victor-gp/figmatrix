@@ -1,0 +1,8 @@
+name: figmatrix-backend
+services:
+- environment_slug: python
+  github:
+    branch: backend-deploy
+    deploy_on_push: true
+    repo: victor-gp/figmatrix
+  name: figmatrix-backend
