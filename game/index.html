@@ -716,10 +716,6 @@
                                         🎤 Start Recording
                                     </button>
                                 )}
-                                {/* Debug info */}
-                                <div style={{fontSize: '10px', color: 'gray', position: 'fixed', top: '10px', right: '10px', background: 'white', padding: '5px'}}>
-                                    Debug: isRecording={isRecording.toString()}, sentenceCompleted={sentenceCompleted.toString()}, currentSyllableIndex={currentSyllableIndex}, syllables.length={syllables.length}
-                                </div>
                                 {isRecording && (
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-center space-x-2">
@@ -808,13 +804,9 @@
                 setCurrentScreen("game");
             };
 
-            const handleGameComplete = () => {
-                // Can add any completion logic here if needed
-            };
+            const handleGameComplete = () => {};
 
-            const handleTryAgain = () => {
-                // Game component handles its own reset
-            };
+            const handleTryAgain = () => {};
 
             const handleNextChallenge = () => {
                 setCurrentScreen("special-challenge");
