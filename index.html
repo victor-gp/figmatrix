@@ -503,7 +503,7 @@
             // Function to play text-to-speech for a syllable
             const playSyllableAudio = async (syllable) => {
                 try {
-                    const response = await fetch('http://localhost:8001/text-to-speech', {
+                    const response = await fetch('https://figmatrix-backend2-bvqep.ondigitalocean.app/text-to-speech', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -659,7 +659,7 @@
                                 channels: audioData.channels
                             });
                         
-                            const response = await fetch('http://localhost:8001/compare-speech', {
+                            const response = await fetch('https://figmatrix-backend2-bvqep.ondigitalocean.app/compare-speech', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
