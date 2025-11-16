@@ -1,7 +1,7 @@
 import os
 import tempfile
 import base64
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -68,6 +68,10 @@ class SpeechRequest(BaseModel):
     audio_content: str
     comparison_text: str
 
+class TextToSpeechRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = "21m00Tcm4TlvDq8ikWAM"  # Default voice
+
 @app.post("/compare-speech", response_model=ComparisonResponse)
 async def compare_speech(request: SpeechRequest):
     """
@@ -133,6 +137,32 @@ async def compare_speech(request: SpeechRequest):
             raise HTTPException(status_code=500, detail=f"ElevenLabs API error: {str(e)}")
         else:
             raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/text-to-speech")
+async def text_to_speech(request: TextToSpeechRequest):
+    try:
+        # Generate audio from text using ElevenLabs
+        audio_stream = client.text_to_speech.stream(
+            text=request.text,
+            voice_id=request.voice_id,
+            model_id="eleven_monolingual_v1"
+        )
+        
+        # Convert stream to bytes
+        audio_bytes = b""
+        for chunk in audio_stream:
+            audio_bytes += chunk
+        
+        # Encode to base64
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        
+        return {
+            "audio_content": audio_base64,
+            "text": request.text
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
