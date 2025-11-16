@@ -75,7 +75,7 @@ class TextToSpeechRequest(BaseModel):
 @app.post("/compare-speech", response_model=ComparisonResponse)
 async def compare_speech(request: SpeechRequest):
     """
-    Compare speech transcript with provided text using base64 encoded audio content.
+    Compare speech transcript with provided text using base64 encoded PCM_s16le_16 audio content.
     
     Args:
         audio_content: Base64 encoded PCM_s16le_16 audio content
@@ -95,7 +95,7 @@ async def compare_speech(request: SpeechRequest):
             raise HTTPException(status_code=400, detail=f"Invalid base64 audio content: {str(e)}")
         
         # Create a temporary file to store the decoded audio
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pcm') as temp_file:
             temp_file.write(audio_bytes)
             temp_file_path = temp_file.name
             print(f"Temporary file created: {temp_file_path}")
@@ -106,7 +106,7 @@ async def compare_speech(request: SpeechRequest):
                 print(f"File size: {os.path.getsize(temp_file_path)} bytes")
                 response = client.speech_to_text.convert(
                     file=audio_data,
-                    file_format="pcm_s16le_16",  # Specify the audio format
+                    file_format="pcm_s16le_16",  # PCM format as required
                     model_id="scribe_v2"  # You can specify model if needed
                 )
                 # Extract text from response
